@@ -1,5 +1,6 @@
 package com.cugb.quahog.VideoTestVisible;
 
+import com.cugb.quahog.Configuration.AppConfigurationProperties;
 import com.cugb.quahog.VideoService.VideoFrameProcessorTestVisible;
 import org.bytedeco.javacv.Frame;
 

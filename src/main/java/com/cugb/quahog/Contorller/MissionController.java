@@ -4,22 +4,28 @@ package com.cugb.quahog.Contorller;
 import com.cugb.quahog.VideoService.VideoFrameProcessor;
 import org.bytedeco.javacv.Frame;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.*;
 
 import com.cugb.quahog.Pojo.Result;
 
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/mission")
 public class MissionController {
 
+    @Autowired
     private VideoFrameProcessor vfp;
 
     @GetMapping("/start")
     public Result MissionStart(String pull_url) throws Exception {
-        vfp = new VideoFrameProcessor(pull_url);
-        vfp.start();
-
+        if (pull_url == null || pull_url.isEmpty()) {
+            return Result.error("视频流地址有误");
+        }
+        Result a = vfp.start(pull_url);
+        if (a.getCode() == 1) {
+            return Result.error(a.getMessage());
+        }
         new Thread(() -> {
             while (true) {
                 try {
@@ -41,7 +47,7 @@ public class MissionController {
 
     }
 
-    @PostMapping("/stop")
+    @PostMapping("/stopF")
     public void MissionStopFORCE() {
         vfp.stopNOW();
     }
