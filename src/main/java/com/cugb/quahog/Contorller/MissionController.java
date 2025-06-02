@@ -19,13 +19,17 @@ public class MissionController {
 
     @GetMapping("/start")
     public Result MissionStart(String pull_url) throws Exception {
+
+        //Request parameters validation
         if (pull_url == null || pull_url.isEmpty()) {
-            return Result.error("视频流地址有误");
+            return Result.error("Unexpected Stream Pull Url");
         }
         Result a = vfp.start(pull_url);
         if (a.getCode() == 1) {
             return Result.error(a.getMessage());
         }
+
+
         new Thread(() -> {
             while (true) {
                 try {
