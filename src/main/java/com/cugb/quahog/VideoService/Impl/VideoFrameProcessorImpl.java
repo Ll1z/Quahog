@@ -127,6 +127,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         rate = frameGrabber.getFrameRate();
         //Resource resource = new ClassPathResource("./fire_20250315173627A009.onnx");
         env = OrtEnvironment.getEnvironment();
+        System.out.println(env.toString());
         session = env.createSession(model_path);
         frameQueue = new LinkedBlockingQueue<Frame>(1000);
         //executor = Executors.newCachedThreadPool();

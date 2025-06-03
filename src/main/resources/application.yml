@@ -1,0 +1,15 @@
+server:
+  port: 8080
+logging:
+  level:
+    root: info
+    com.cugb.quahog: debug
+spring:
+  application:
+    name: Quahog
+pull:
+  url: https://resources.ucanfly.com.cn:8081/live/live/2.flv
+app:
+  pull-url: https://resources.ucanfly.com.cn:8081/live/live/2.flv
+  model:
+    default-confidence: 0.7
