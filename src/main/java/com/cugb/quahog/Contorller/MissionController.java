@@ -46,6 +46,16 @@ public class MissionController {
         return Result.success("");
     }
 
+    @GetMapping("/startnew")
+    public Result MissionStartNew(String pull_url) throws Exception {
+        System.out.println("/mission/starter");
+        vfp.InitAndStart(pull_url);
+        vfp.PushStream();
+        vfp.close();
+
+        return Result.success("");
+    }
+
     @PostMapping("/stop")
     public void MissionStop() {
 

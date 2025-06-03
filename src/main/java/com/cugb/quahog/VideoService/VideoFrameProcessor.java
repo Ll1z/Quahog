@@ -13,6 +13,7 @@ public interface VideoFrameProcessor {
     Frame getFrame() throws InterruptedException;
     Result InitAndStart(String pull_url) throws Exception;
     Result PullStream() throws Exception;
-    Result FrameDetect() throws Exception;
+    void FrameDetect() throws Exception;
     Result PushStream() throws Exception;
+    Result close() throws Exception;
 }
