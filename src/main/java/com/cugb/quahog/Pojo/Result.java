@@ -8,7 +8,7 @@ public class Result<T> {
     private T data;//响应数据
 
     public Result(int i, String message, T data) {
-        this.code = i;
+        this.code = (Integer) i;
         this.message = message;
         this.data = data;
     }

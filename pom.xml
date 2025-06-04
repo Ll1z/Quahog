@@ -8,11 +8,13 @@
         <version>3.5.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
+
     <groupId>com.cugb</groupId>
     <artifactId>Quahog</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>Quahog</name>
     <description>Quahog</description>
+
     <url/>
     <licenses>
         <license/>
@@ -27,7 +29,7 @@
         <url/>
     </scm>
     <properties>
-        <java.version>24</java.version>
+        <java.version>17</java.version>
     </properties>
     <dependencies>
         <dependency>
@@ -47,17 +49,17 @@
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv</artifactId>
-            <version>1.5.7</version>
+            <version>1.5.10</version>
         </dependency>
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv-platform</artifactId>
-            <version>1.5.7</version>
+            <version>1.5.10</version>
         </dependency>
         <dependency>
             <groupId>com.microsoft.onnxruntime</groupId>
             <artifactId>onnxruntime</artifactId>
-            <version>1.22.0</version>
+            <version>1.19.2</version>
         </dependency>
     </dependencies>
 
