@@ -92,7 +92,7 @@ public class VideoFrameProcessorTestVisible {
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setFormat("flv");
         recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
-        recorder.setFrameRate(1);
+        recorder.setFrameRate(15);
         // 设置比特率
         recorder.setVideoBitrate(2000000);
         // 设置关键帧间隔
@@ -138,6 +138,10 @@ public class VideoFrameProcessorTestVisible {
             try {
                 System.out.println("Frame Detect");
                 Frame frame = frameQueue.take();
+                if (!frameQueue.isEmpty()) {
+                    frameQueue.poll();
+                }
+
                 if (frame.image == null) {
                     System.out.println("----------------------No more image");
                     continue;
@@ -153,12 +157,12 @@ public class VideoFrameProcessorTestVisible {
                 Mat FuseResult = drawAndCount(processedMat, detections);
                 //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
                 //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
-                opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
+                opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
 //                recorder.record(Converter.convert(FuseResult));
-                Mat image = opencv_imgcodecs.imread("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg");
+                Mat image = opencv_imgcodecs.imread("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg");
                 recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
                 canvas.setSize(1152, 720);
-                //canvas.showImage(converter.convert(Converter.convert(FuseResult)));
+                canvas.showImage(new OpenCVFrameConverter.ToIplImage().convert(image));
                 inputTensor.close();
                 processedMat.release();
             } catch (InterruptedException e) {

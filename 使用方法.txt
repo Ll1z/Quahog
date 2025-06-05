@@ -1,0 +1,22 @@
+2025/6/5 21:01更新：
+目前测试调试均在本地类VideoTestVisible/WatchThem中进行，等待调试完美后将代码更新到Web应用程序上。
+目前项目配置和依赖：Java17或Java24均可，依赖详见pom.xml
+如果你的Java环境与properties标签下的版本不同，更新properties标签下的java版本，在maven中clean并重新加载所有maven项目，compile能过就没问题。
+如果maven解析依赖项下载不了，可以根据dependencies标签下的依赖版本，去文件→项目结构→库→新建项目库→来自Maven搜索名称下载到本地。
+
+测试方法：
+i)在VideoService/VideoFrameProcessorTestVisible类中FrameDetect方法下有两个地址是写死的，一个是opencv_imgcodecs.imwrite()方法的参数，
+一个是opencv_imgcodecs.imread()方法的参数，前者用于将融合后的视频帧以Image形式保存，后者用于将本地的Image转换为视频帧推流，以下是地址样式：
+D:\IDEAProj\Quahog\src\main\java\com\cugb\quahog\Preview\q.jpg
+一个保存一个推流，二者用的是同一张图片。把绝对路径换成你的本地路径。
+
+ii)启动WatchThem类的main方法即可，弹出的框是将融合后的视频帧保存在本地后形成的视频，根据推流地址找到对应的查看地址，用VLC播放器就能看推流视频。
+
+现在的推流写死的参数是：比特率2000000，视频帧率15，关键帧间隔30。本地单线程运行。
+iii)算法调试方法：预处理时先将拉下来的视频帧处理：Imgproc.COLOR_BGR2RGB，由BGR转为RGB。重置大小为640*640，原本为1152*720。
+将该帧参数归一化，/255，并将视频帧转换为Float类型的buffer。
+将预处理后的视频帧再转换为算法所需的输入张量参数，构建张量并执行算法。
+得到算法执行结果，将结果与原视频帧融合，生成新的视频帧，转换为Image，保存在本地并推流到目标地址。
+融合方法只言片语难以描述，爱在心口难开，只能说不要相信GPT。
+
+
