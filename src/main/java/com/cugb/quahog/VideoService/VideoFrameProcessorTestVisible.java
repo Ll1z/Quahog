@@ -15,6 +15,7 @@ import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Point;
 import org.bytedeco.opencv.opencv_core.Scalar;
 import org.opencv.core.CvType;
+import org.opencv.imgproc.Imgproc;
 
 import java.nio.FloatBuffer;
 import java.util.Arrays;
@@ -91,17 +92,17 @@ public class VideoFrameProcessorTestVisible {
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setFormat("flv");
         recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
-        recorder.setFrameRate(rate);
+        recorder.setFrameRate(1);
         // 设置比特率
         recorder.setVideoBitrate(2000000);
         // 设置关键帧间隔
-        recorder.setGopSize(60);
+        recorder.setGopSize(30);
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
-        recorder.setAudioChannels(0);
-        recorder.setSampleFormat(avutil.AV_SAMPLE_FMT_NONE);
-        //recorder.setAudioBitrate(0);
+        //recorder.setAudioChannels(0);
+        //recorder.setSampleFormat(avutil.AV_SAMPLE_FMT_NONE);
+        //recorder.setAudioBitrate(0);/
         //recorder.setAudioCodec(org.bytedeco.ffmpeg.global.);
         //recorder.setOption("an", "1"); // 禁用音频
         recorder.start();
@@ -153,11 +154,11 @@ public class VideoFrameProcessorTestVisible {
                 //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
                 //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
                 opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
-                recorder.record(Converter.convert(FuseResult));
-                System.out.println(Converter.convert(FuseResult).imageWidth);
-                System.out.println(Converter.convert(FuseResult).imageHeight);
-//                canvas.setSize(640, 640);
-//                canvas.showImage(converter.convert(Converter.convert(FuseResult)));
+//                recorder.record(Converter.convert(FuseResult));
+                Mat image = opencv_imgcodecs.imread("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg");
+                recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
+                canvas.setSize(1152, 720);
+                //canvas.showImage(converter.convert(Converter.convert(FuseResult)));
                 inputTensor.close();
                 processedMat.release();
             } catch (InterruptedException e) {
@@ -193,9 +194,14 @@ public class VideoFrameProcessorTestVisible {
         return frameQueue.take();
     }
     private Mat preprocessFrame(Frame frame) {
+
         Mat mat = Converter.convert(frame);
+        opencv_imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2RGB);
         Mat resize = new Mat();
         opencv_imgproc.resize(mat, resize, new org.bytedeco.opencv.opencv_core.Size(640, 640));
+        opencv_core.divide(255, resize);
+        //opencv_core.transpose(resize, resize);
+        //resize = resize.reshape(1, 3);
         resize.convertTo(resize, CvType.CV_32FC3);
         //opencv_core.divide(255.0, resize, resize);
 //        Mat c = new Mat();
@@ -294,7 +300,7 @@ public class VideoFrameProcessorTestVisible {
             opencv_imgproc.putText(frame, countLabel, new Point(10, y), 0, 0.5, new Scalar(255, 0, 0,0));
             y += 20;
         }
-
+        opencv_imgproc.resize(frame, frame, new org.bytedeco.opencv.opencv_core.Size(1152, 720));
         return frame;
     }
 }
