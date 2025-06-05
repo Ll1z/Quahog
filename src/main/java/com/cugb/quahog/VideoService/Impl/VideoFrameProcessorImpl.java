@@ -1,20 +1,29 @@
 package com.cugb.quahog.VideoService.Impl;
 
-import ai.onnxruntime.OnnxTensor;
-import ai.onnxruntime.OrtEnvironment;
-import ai.onnxruntime.OrtException;
-import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.*;
 import com.cugb.quahog.Pojo.Result;
 import com.cugb.quahog.VideoService.VideoFrameProcessor;
 import org.bytedeco.ffmpeg.global.avcodec;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.*;
+import org.bytedeco.opencv.global.opencv_core;
 import org.bytedeco.opencv.global.opencv_imgcodecs;
 import org.bytedeco.opencv.global.opencv_imgproc;
+import org.bytedeco.opencv.opencv_core.*;
 //import org.opencv.core.Mat;
 import org.bytedeco.opencv.opencv_core.Mat;
+//import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Point;
 import org.bytedeco.opencv.opencv_core.Scalar;
+import org.bytedeco.javacv.*;
+
+//import org.opencv.core.Core;
+//import org.opencv.core.CvType;
+//import org.opencv.core.Scalar;
+//import org.opencv.core.Mat;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -49,7 +58,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private double rate;
     private int channels = 3;
     private int batches = 1;
-    private String push_url = "rtmp://202.204.101.80:8082/live/202501?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
+    private String push_url = "rtmp://202.204.101.80:8082/live/202504?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
 //    private final CanvasFrame canvas = new CanvasFrame("Video Player");
 //    private final Java2DFrameConverter converter = new Java2DFrameConverter();
 
@@ -123,7 +132,12 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         //Try to start frame grabber
         System.out.println(pull_url);
         System.out.println("InitAndStart");
-
+        frameGrabber = new FFmpegFrameGrabber("https://resources.ucanfly.com.cn:8081/live/live/2.flv");
+        frameGrabber.start();
+        FFmpegLogCallback.set();
+        height = frameGrabber.getImageHeight();
+        width = frameGrabber.getImageWidth();
+        rate = frameGrabber.getFrameRate();
         Converter = new OpenCVFrameConverter.ToMat();
         //opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", Converter.convert(frameGrabber.grab()));
 
@@ -140,11 +154,11 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         // 设置比特率
         recorder.setVideoBitrate(2000000);
         // 设置关键帧间隔
-        recorder.setGopSize(60);
+        //recorder.setGopSize(60);
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
-
+        recorder.start();
         System.out.println("Pulling stream");
         Result r = PullStream(pull_url);
 
@@ -154,43 +168,40 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     @Override
     public Result PullStream(String pull_url) throws Exception {
-        frameGrabber = new FFmpegFrameGrabber("https://resources.ucanfly.com.cn:8081/live/live/2.flv");
-        frameGrabber.start();
-        FFmpegLogCallback.set();
+
         try{
 
         }catch (Exception e){
             return Result.error("Initializing Wrong: Fail to Start FrameGrabber");
         }
-        height = frameGrabber.getImageHeight();
-        width = frameGrabber.getImageWidth();
-        rate = frameGrabber.getFrameRate();
 
-        executor.submit(() -> {
-            try{
-                Frame frame = null;
-                while (true) {
-                    frame = frameGrabber.grabImage();
-                    if (frame.image != null) {
-                        frameQueue.add(frame);
-                    }else{
-                        System.out.println("No more frames available or net error");
-                        continue;
-                    }
+        try{
+            Frame frame = null;
+            while (true) {
+                frame = frameGrabber.grabImage();
+                if (frame.image != null) {
+                    frameQueue.add(frame);
+                    FrameDetect();
+                }else{
+                    System.out.println("No more frames available or net error");
+                    continue;
+                }
 //                    if (frame == null) {
 //                        break;
 //                    }
-                    if (!frameQueue.offer(frame, 1, TimeUnit.SECONDS)) {
-                        System.err.println("Pulling Wrong: Frame queue is full, dropping frame.");
-                    }
-
+                if (!frameQueue.offer(frame, 1, TimeUnit.SECONDS)) {
+                    System.err.println("Pulling Wrong: Frame queue is full, dropping frame.");
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
 
-        });
-        FrameDetect();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+//        executor.submit(() -> {
+//
+//
+//        });
+
 //        for (int i = 0; i < 1; i++) {
 //            executor.submit(this::FrameDetect);
 //        }
@@ -200,24 +211,30 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     }
 
     @Override
-    public void FrameDetect() {
-        while (true) {
+    public void FrameDetect() throws Exception {
+
+        int t =0 ;
+        while (t == 0) {
+            t = 1;
             try {
                 System.out.println("Frame Detect");
                 Frame frame = frameQueue.take();
                 if (frame.image == null) {
                     System.out.println("----------------------No more image");
+                    continue;
                 }
                 Mat processedMat = preprocessFrame(frame);
 
                 OnnxTensor inputTensor = convertMatToOnnxTensor(processedMat);
-                if (inputTensor == null) {continue;}
+                //if (inputTensor == null) {continue;}
                 Map<String, OnnxTensor> inputs = new HashMap<>();
-                inputs.put("123", inputTensor);
+                inputs.put("images", inputTensor);
                 OrtSession.Result result = session.run(inputs);
                 Map<String, Object> detections = postprocess(result);
                 Mat FuseResult = drawAndCount(processedMat, detections);
-                opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
+                //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+                //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
+                //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
                 recorder.record(Converter.convert(FuseResult));
                 inputTensor.close();
                 processedMat.release();
@@ -241,27 +258,41 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         Mat mat = Converter.convert(frame);
         Mat resize = new Mat();
         opencv_imgproc.resize(mat, resize, new org.bytedeco.opencv.opencv_core.Size(640, 640));
-
-        return mat;
+        resize.convertTo(resize, CvType.CV_32FC3);
+        Scalar sc = new Scalar(255.0);
+        opencv_core.divide(255, resize, resize);
+        Mat c = new Mat();
+        opencv_core.transpose(resize, c);
+        resize = c.reshape(1,3);
+        return resize;
     }
     private OnnxTensor convertMatToOnnxTensor(Mat mat) throws Exception {
         if (mat == null) {
             return null;
         }
-        ByteBuffer buffer = mat.createBuffer();
-        FloatBuffer f = buffer.asFloatBuffer();
-        long[] shape = new long[]{1, channels, height, width}; // 示例形状
+        FloatBuffer f = mat.createBuffer();
+        long[] shape = new long[]{1, channels, 640, 640}; // 示例形状
         return OnnxTensor.createTensor(env, f, shape);
     }
 
     private Map<String, Object> postprocess(OrtSession.Result result) throws OrtException {
         Map<String, Object> detections = new HashMap<>();
-
+        OnnxTensor outputTensor = (OnnxTensor) result.get(0);
+        float[][][] outputData = (float[][][]) outputTensor.getValue();
         // 解析模型输出，获取边界框、置信度、类别ID
         // 示例：假设输出包含边界框、置信度和类别ID的Tensor
-        float[][][] boundingBoxes = (float[][][]) result.get(0).getValue(); // 根据模型调整索引
-        float[][] confidenceScores = (float[][]) result.get(1).getValue();
-        int[][] classIds = (int[][]) result.get(2).getValue();
+        int numDetections = outputData.length;
+        float[][][] boundingBoxes = new float[numDetections][1][4]; // [x1, y1, x2, y2]
+        float[][] confidenceScores = new float[numDetections][1];   // confidence
+        int[][] classIds = new int[numDetections][1];
+        for (int i = 0; i < numDetections; i++) {
+            boundingBoxes[i][0][0] = outputData[i][0][0]; // x1
+            boundingBoxes[i][0][1] = outputData[i][0][1]; // y1
+            boundingBoxes[i][0][2] = outputData[i][0][2]; // x2
+            boundingBoxes[i][0][3] = outputData[i][0][3]; // y2
+            confidenceScores[i][0] = outputData[i][0][4]; // confidence
+            classIds[i][0] = (int) outputData[i][0][5];   // classId
+        }
 
         detections.put("boundingBoxes", boundingBoxes);
         detections.put("confidenceScores", confidenceScores);
@@ -273,15 +304,15 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private Mat drawAndCount(Mat frame, Map<String, Object> detections) {
         float[][][] boundingBoxes = (float[][][]) detections.get("boundingBoxes");
         float[][] confidenceScores = (float[][]) detections.get("confidenceScores");
-        Integer[][] classIds = (Integer[][]) detections.get("classIds");
+        int[][] classIds = (int[][]) detections.get("classIds");
 
         // 统计当前帧中置信度大于0.7的各类别目标的数量
         Map<Integer, Integer> classCounts = new HashMap<>();
         for (int i = 0; i < confidenceScores.length; i++) {
             for (int j = 0; j < confidenceScores[i].length; j++) {
                 if (confidenceScores[i][j] > 0.7) {
-                    Integer classId = classIds[i][j];
-                    classCounts.put(classId, Integer.valueOf(classCounts.getOrDefault(classId, Integer.valueOf(0)) + 1));
+                    int classId = classIds[i][j];
+                    classCounts.put(classId, classCounts.getOrDefault(classId, 0) + 1);
                 }
             }
         }

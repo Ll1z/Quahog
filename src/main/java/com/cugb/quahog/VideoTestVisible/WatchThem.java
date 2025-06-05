@@ -16,24 +16,24 @@ public class WatchThem {
         vfp.start();
 
         int num = 0;
-        while (true) {
-            try {
-                Frame frame = vfp.getFrame();
-                try{
-                    opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", Converter.convert(frame));
-                }catch (Exception e){
-                    e.printStackTrace();
-                }
-                System.out.println("Reading frame: " + num);
-                num++;
-                if (frame == null) {
-                    System.out.println("no frames any more");
-                    break;
-                }
-            }catch (InterruptedException e){
-                e.printStackTrace();
-            }
-        }
+//        while (true) {
+//            try {
+//                Frame frame = vfp.getFrame();
+//                try{
+//                    opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", Converter.convert(frame));
+//                }catch (Exception e){
+//                    e.printStackTrace();
+//                }
+//                System.out.println("Reading frame: " + num);
+//                num++;
+//                if (frame == null) {
+//                    System.out.println("no frames any more");
+//                    break;
+//                }
+//            }catch (InterruptedException e){
+//                e.printStackTrace();
+//            }
+//        }
 
         vfp.stop();
     }
