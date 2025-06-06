@@ -4,6 +4,8 @@ logging:
   level:
     root: info
     com.cugb.quahog: debug
+  file:
+    name: custom-log.log
 spring:
   application:
     name: Quahog

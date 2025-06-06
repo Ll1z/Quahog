@@ -1,9 +1,7 @@
 package com.cugb.quahog.VideoService;
 
-import ai.onnxruntime.OnnxTensor;
-import ai.onnxruntime.OrtEnvironment;
-import ai.onnxruntime.OrtException;
-import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.*;
+import ai.onnxruntime.providers.OrtCUDAProviderOptions;
 import com.cugb.quahog.Pojo.Result;
 import org.bytedeco.ffmpeg.global.avcodec;
 import org.bytedeco.ffmpeg.global.avutil;
@@ -38,14 +36,14 @@ public class VideoFrameProcessorTestVisible {
     private OrtEnvironment env;
     private OrtSession session;
     private int numThreads;
-    private String model_path = "D:\\IDEAProj\\Quahog\\src\\main\\resources\\fire_20250315173627A009.onnx";;
+    private String model_path = "src/main/resources/fire_20250315173627A009.onnx";;
     private OpenCVFrameConverter.ToMat Converter;
     private int height;
     private int width;
     private double rate;
     private int channels = 3;
     private int batches = 1;
-    private String push_url = "rtmp://202.204.101.80:8082/live/202502?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
+    private String push_url = "rtmp://202.204.101.80:8082/live/202504?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
 
 
     public VideoFrameProcessorTestVisible(String pull_url) throws Exception{
@@ -86,6 +84,12 @@ public class VideoFrameProcessorTestVisible {
         //opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", Converter.convert(frameGrabber.grab()));
         env = OrtEnvironment.getEnvironment();
         session = env.createSession(model_path);
+
+        //GPU版本测试
+//        OrtSession.SessionOptions options = new OrtSession.SessionOptions();
+//        options.addCUDA(10);
+//        session = env.createSession(model_path, new OrtSession.SessionOptions());
+
         frameQueue = new LinkedBlockingQueue<Frame>(1000);
         numThreads = 2;
         recorder = new FFmpegFrameRecorder(push_url, width, height);
@@ -100,13 +104,7 @@ public class VideoFrameProcessorTestVisible {
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
-        //recorder.setAudioChannels(0);
-        //recorder.setSampleFormat(avutil.AV_SAMPLE_FMT_NONE);
-        //recorder.setAudioBitrate(0);/
-        //recorder.setAudioCodec(org.bytedeco.ffmpeg.global.);
-        //recorder.setOption("an", "1"); // 禁用音频
         recorder.start();
-
         try{
             Frame frame = null;
             while (true) {
@@ -157,9 +155,9 @@ public class VideoFrameProcessorTestVisible {
                 Mat FuseResult = drawAndCount(processedMat, detections);
                 //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
                 //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
-                opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
+                opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/q.jpg", FuseResult);
 //                recorder.record(Converter.convert(FuseResult));
-                Mat image = opencv_imgcodecs.imread("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg");
+                Mat image = opencv_imgcodecs.imread("src/main/java/com/cugb/quahog/Preview/q.jpg");
                 recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
                 canvas.setSize(1152, 720);
                 canvas.showImage(new OpenCVFrameConverter.ToIplImage().convert(image));

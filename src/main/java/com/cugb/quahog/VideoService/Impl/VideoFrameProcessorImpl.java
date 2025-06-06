@@ -24,6 +24,9 @@ import org.bytedeco.javacv.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -43,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
+    private static final Logger logger = LoggerFactory.getLogger(VideoFrameProcessorImpl.class);
     private FFmpegFrameGrabber frameGrabber;
     private LinkedBlockingQueue<Frame> frameQueue;
     private ExecutorService executor;
@@ -51,7 +55,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private OrtEnvironment env;
     private OrtSession session;
     private int numThreads;
-    private String model_path = "D:\\IDEAProj\\Quahog\\src\\main\\resources\\fire_20250315173627A009.onnx";
+    private String model_path = "src/main/resources/fire_20250315173627A009.onnx";
     private OpenCVFrameConverter.ToMat Converter;
     private int height;
     private int width;
@@ -59,8 +63,6 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private int channels = 3;
     private int batches = 1;
     private String push_url = "rtmp://202.204.101.80:8082/live/202504?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
-//    private final CanvasFrame canvas = new CanvasFrame("Video Player");
-//    private final Java2DFrameConverter converter = new Java2DFrameConverter();
 
 
     @Override
@@ -129,32 +131,27 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     @Override
     public Result InitAndStart(String pull_url) throws Exception {
-        //Try to start frame grabber
-        System.out.println(pull_url);
-        System.out.println("InitAndStart");
-        frameGrabber = new FFmpegFrameGrabber("https://resources.ucanfly.com.cn:8081/live/live/2.flv");
+
+        frameGrabber = new FFmpegFrameGrabber(pull_url);
         frameGrabber.start();
-        FFmpegLogCallback.set();
         height = frameGrabber.getImageHeight();
         width = frameGrabber.getImageWidth();
         rate = frameGrabber.getFrameRate();
         Converter = new OpenCVFrameConverter.ToMat();
-        //opencv_imgcodecs.imwrite("D:\\IDEAProj\\Quahog\\src\\main\\java\\com\\cugb\\quahog\\Preview", Converter.convert(frameGrabber.grab()));
-
         env = OrtEnvironment.getEnvironment();
         session = env.createSession(model_path);
-        frameQueue = new LinkedBlockingQueue<Frame>(1000);
+        frameQueue = new LinkedBlockingQueue<Frame>(10000);
         numThreads = 2;
         executor = Executors.newFixedThreadPool(numThreads);
         recorder = new FFmpegFrameRecorder(push_url, width, height);
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setFormat("flv");
-        recorder.setPixelFormat(avutil.AV_PIX_FMT_YUV420P);
-        recorder.setFrameRate(rate);
+        recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
+        recorder.setFrameRate(15);
         // 设置比特率
         recorder.setVideoBitrate(2000000);
         // 设置关键帧间隔
-        //recorder.setGopSize(60);
+        recorder.setGopSize(15);
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
@@ -168,27 +165,26 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     @Override
     public Result PullStream(String pull_url) throws Exception {
-
-        try{
-
-        }catch (Exception e){
-            return Result.error("Initializing Wrong: Fail to Start FrameGrabber");
-        }
-
         try{
             Frame frame = null;
             while (true) {
+                long starttime = System.nanoTime();
                 frame = frameGrabber.grabImage();
                 if (frame.image != null) {
                     frameQueue.add(frame);
+                    long endtime = System.nanoTime();
+                    long duration = endtime - starttime;
+                    //System.out.println("Grab time: " + (double) duration / 1_000_000_000 + " s");
+                    starttime = System.nanoTime();
                     FrameDetect();
+                    endtime = System.nanoTime();
+                    long dduration = endtime - starttime;
+                    logger.info("Detect time: " + (double) dduration / 1_000_000 + " ms");
+                    System.out.println("Detect time: " + (double) dduration / 1_000_000 + " ms");
                 }else{
                     System.out.println("No more frames available or net error");
                     continue;
                 }
-//                    if (frame == null) {
-//                        break;
-//                    }
                 if (!frameQueue.offer(frame, 1, TimeUnit.SECONDS)) {
                     System.err.println("Pulling Wrong: Frame queue is full, dropping frame.");
                 }
@@ -197,45 +193,71 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         } catch (Exception e) {
             e.printStackTrace();
         }
-//        executor.submit(() -> {
-//
-//
-//        });
-
-//        for (int i = 0; i < 1; i++) {
-//            executor.submit(this::FrameDetect);
-//        }
-        //Read and Enqueue Frames
-
         return null;
     }
 
     @Override
     public void FrameDetect() throws Exception {
-
+        long starttime;
+        long endtime;
+        long duration;
         int t =0 ;
         while (t == 0) {
             t = 1;
             try {
-                System.out.println("Frame Detect");
+                logger.info("Frame Detect");
                 Frame frame = frameQueue.take();
                 if (frame.image == null) {
-                    System.out.println("----------------------No more image");
+                    logger.warn("----------------------No more image");
                     continue;
                 }
                 Mat processedMat = preprocessFrame(frame);
-
                 OnnxTensor inputTensor = convertMatToOnnxTensor(processedMat);
-                //if (inputTensor == null) {continue;}
                 Map<String, OnnxTensor> inputs = new HashMap<>();
                 inputs.put("images", inputTensor);
+
+
+                starttime = System.nanoTime();
                 OrtSession.Result result = session.run(inputs);
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("sessionrun time: " + (double) duration / 1_000_000 + " ms");
+
+
+
+                starttime = System.nanoTime();
                 Map<String, Object> detections = postprocess(result);
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("postprocess time: " + (double) duration / 1_000_000 + " ms");
+
+                starttime = System.nanoTime();
                 Mat FuseResult = drawAndCount(processedMat, detections);
-                //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-                //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview", FuseResult);
-                //opencv_imgcodecs.imwrite("D:\\IDEAProj\\magic\\src\\main\\java\\com\\cugb\\quahog\\Preview\\q.jpg", FuseResult);
-                recorder.record(Converter.convert(FuseResult));
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("drawAndCount time: " + (double) duration / 1_000_000 + " ms");
+
+
+
+                starttime = System.nanoTime();
+                opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/q.jpg", FuseResult);
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("imwrite time: " + (double) duration / 1_000_000 + " ms");
+
+                starttime = System.nanoTime();
+                Mat image = opencv_imgcodecs.imread("src/main/java/com/cugb/quahog/Preview/q.jpg");
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("imread time: " + (double) duration / 1_000_000 + " ms");
+
+                starttime = System.nanoTime();
+                recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
+                endtime = System.nanoTime();
+                duration = endtime - starttime;
+                logger.info("record time: " + (double) duration / 1_000_000 + " ms");
+
+
                 inputTensor.close();
                 processedMat.release();
             } catch (InterruptedException e) {
@@ -256,14 +278,11 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     private Mat preprocessFrame(Frame frame) {
         Mat mat = Converter.convert(frame);
+        opencv_imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2RGB);
         Mat resize = new Mat();
         opencv_imgproc.resize(mat, resize, new org.bytedeco.opencv.opencv_core.Size(640, 640));
+        opencv_core.divide(255, resize);
         resize.convertTo(resize, CvType.CV_32FC3);
-        Scalar sc = new Scalar(255.0);
-        opencv_core.divide(255, resize, resize);
-        Mat c = new Mat();
-        opencv_core.transpose(resize, c);
-        resize = c.reshape(1,3);
         return resize;
     }
     private OnnxTensor convertMatToOnnxTensor(Mat mat) throws Exception {
@@ -278,20 +297,35 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private Map<String, Object> postprocess(OrtSession.Result result) throws OrtException {
         Map<String, Object> detections = new HashMap<>();
         OnnxTensor outputTensor = (OnnxTensor) result.get(0);
+
         float[][][] outputData = (float[][][]) outputTensor.getValue();
         // 解析模型输出，获取边界框、置信度、类别ID
         // 示例：假设输出包含边界框、置信度和类别ID的Tensor
         int numDetections = outputData.length;
-        float[][][] boundingBoxes = new float[numDetections][1][4]; // [x1, y1, x2, y2]
-        float[][] confidenceScores = new float[numDetections][1];   // confidence
-        int[][] classIds = new int[numDetections][1];
-        for (int i = 0; i < numDetections; i++) {
-            boundingBoxes[i][0][0] = outputData[i][0][0]; // x1
-            boundingBoxes[i][0][1] = outputData[i][0][1]; // y1
-            boundingBoxes[i][0][2] = outputData[i][0][2]; // x2
-            boundingBoxes[i][0][3] = outputData[i][0][3]; // y2
-            confidenceScores[i][0] = outputData[i][0][4]; // confidence
-            classIds[i][0] = (int) outputData[i][0][5];   // classId
+        int n = outputData.length;
+        int m = outputData[0].length;
+        int s = outputData[0][0].length;
+//        System.out.println(n);
+//        System.out.println(m);
+//        System.out.println(s);
+        float[][][] boundingBoxes = new float[s][1][4]; // [x1, y1, x2, y2]
+        float[][] confidenceScores = new float[s][1];   // confidence
+        int[][] classIds = new int[s][1];
+        for (int i = 0; i < n; i++){
+            for (int k = 0; k < s; k++){
+                float x = outputData[i][0][k];
+                float y = outputData[i][1][k];
+                float w = outputData[i][2][k];
+                float h = outputData[i][3][k];
+                float confidence = outputData[i][4][k];
+                float class_id = outputData[i][5][k];
+                boundingBoxes[k][0][0] = x; // x1
+                boundingBoxes[k][0][1] = y; // y1
+                boundingBoxes[k][0][2] = w; // x2
+                boundingBoxes[k][0][3] = h; // y2
+                confidenceScores[k][0] = confidence; // confidence
+                classIds[k][0] = (int) class_id;   // classId
+            }
         }
 
         detections.put("boundingBoxes", boundingBoxes);
@@ -342,7 +376,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
             opencv_imgproc.putText(frame, countLabel, new Point(10, y), 0, 0.5, new Scalar(255, 0, 0,0));
             y += 20;
         }
-
+        opencv_imgproc.resize(frame, frame, new org.bytedeco.opencv.opencv_core.Size(1152, 720));
         return frame;
     }
 
