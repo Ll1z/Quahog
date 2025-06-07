@@ -1,6 +1,8 @@
 package com.cugb.quahog.VideoService.Impl;
 
 import ai.onnxruntime.*;
+import com.cugb.quahog.Configuration.AppConfigurationProperties;
+import com.cugb.quahog.Logger.MyLogger;
 import com.cugb.quahog.Pojo.Result;
 import com.cugb.quahog.VideoService.VideoFrameProcessor;
 import org.bytedeco.ffmpeg.global.avcodec;
@@ -27,6 +29,10 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+//import ch.qos.logback.classic.Logger;
+//import ch.qos.logback.classic.spi.ILoggingEvent;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -43,10 +49,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.Thread.sleep;
+
 @Service
 public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
-    private static final Logger logger = LoggerFactory.getLogger(VideoFrameProcessorImpl.class);
+
+
+    private AppConfigurationProperties appConfigurationProperties = new AppConfigurationProperties();
+
+    //private Logger logger = new MyLogger(VideoFrameProcessorImpl.class).getLogger();
     private FFmpegFrameGrabber frameGrabber;
     private LinkedBlockingQueue<Frame> frameQueue;
     private ExecutorService executor;
@@ -55,15 +67,17 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     private OrtEnvironment env;
     private OrtSession session;
     private int numThreads;
-    private String model_path = "src/main/resources/fire_20250315173627A009.onnx";
+    @Value("${app.model_path}")
+    private String model_path;
     private OpenCVFrameConverter.ToMat Converter;
     private int height;
     private int width;
     private double rate;
     private int channels = 3;
     private int batches = 1;
-    private String push_url = "rtmp://202.204.101.80:8082/live/202504?secret=1f146fe5c855d09fdb8e59d203a9fe9e";
-
+    @Value("${app.push_url}")
+    private String push_url;
+    private boolean STOP = false;
 
     @Override
     public Result start(String pull_url) throws Exception {
@@ -131,9 +145,14 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     @Override
     public Result InitAndStart(String pull_url) throws Exception {
+        STOP = false;
+        try{
+            frameGrabber = new FFmpegFrameGrabber(pull_url);
+            frameGrabber.start();
+        }catch (Exception e){
+            return Result.error("Pulling Wrong: Fail to Start FrameGrabber");
+        }
 
-        frameGrabber = new FFmpegFrameGrabber(pull_url);
-        frameGrabber.start();
         height = frameGrabber.getImageHeight();
         width = frameGrabber.getImageWidth();
         rate = frameGrabber.getFrameRate();
@@ -167,7 +186,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     public Result PullStream(String pull_url) throws Exception {
         try{
             Frame frame = null;
-            while (true) {
+            while (!STOP) {
                 long starttime = System.nanoTime();
                 frame = frameGrabber.grabImage();
                 if (frame.image != null) {
@@ -179,8 +198,8 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                     FrameDetect();
                     endtime = System.nanoTime();
                     long dduration = endtime - starttime;
-                    logger.info("Detect time: " + (double) dduration / 1_000_000 + " ms");
-                    System.out.println("Detect time: " + (double) dduration / 1_000_000 + " ms");
+                    //logger.info("Detect time: " + (double) dduration / 1_000_000 + " ms");
+                    //System.out.println("Detect time: " + (double) dduration / 1_000_000 + " ms");
                 }else{
                     System.out.println("No more frames available or net error");
                     continue;
@@ -205,10 +224,10 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         while (t == 0) {
             t = 1;
             try {
-                logger.info("Frame Detect");
+                //logger.info("Frame Detect");
                 Frame frame = frameQueue.take();
                 if (frame.image == null) {
-                    logger.warn("----------------------No more image");
+                    //logger.warn("----------------------No more image");
                     continue;
                 }
                 Mat processedMat = preprocessFrame(frame);
@@ -221,7 +240,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                 OrtSession.Result result = session.run(inputs);
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("sessionrun time: " + (double) duration / 1_000_000 + " ms");
+                //logger.info("sessionrun time: " + (double) duration / 1_000_000 + " ms");
 
 
 
@@ -229,13 +248,13 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                 Map<String, Object> detections = postprocess(result);
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("postprocess time: " + (double) duration / 1_000_000 + " ms");
+               // logger.info("postprocess time: " + (double) duration / 1_000_000 + " ms");
 
                 starttime = System.nanoTime();
                 Mat FuseResult = drawAndCount(processedMat, detections);
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("drawAndCount time: " + (double) duration / 1_000_000 + " ms");
+                //logger.info("drawAndCount time: " + (double) duration / 1_000_000 + " ms");
 
 
 
@@ -243,19 +262,19 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                 opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/q.jpg", FuseResult);
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("imwrite time: " + (double) duration / 1_000_000 + " ms");
+                //logger.info("imwrite time: " + (double) duration / 1_000_000 + " ms");
 
                 starttime = System.nanoTime();
                 Mat image = opencv_imgcodecs.imread("src/main/java/com/cugb/quahog/Preview/q.jpg");
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("imread time: " + (double) duration / 1_000_000 + " ms");
+                //logger.info("imread time: " + (double) duration / 1_000_000 + " ms");
 
                 starttime = System.nanoTime();
                 recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
-                logger.info("record time: " + (double) duration / 1_000_000 + " ms");
+                //logger.info("record time: " + (double) duration / 1_000_000 + " ms");
 
 
                 inputTensor.close();
@@ -383,6 +402,8 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     @Override
     public Result close() throws Exception {
         try {
+            STOP = true;
+            sleep(2000);
             frameGrabber.stop();
             recorder.stop();
             if (session != null) {
@@ -395,7 +416,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return Result.success();
+        return Result.success("任务结束");
     }
 
 }

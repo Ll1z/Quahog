@@ -24,4 +24,11 @@ iii)算法调试方法：预处理时先将拉下来的视频帧处理：Imgproc
 2025/6/6 09:13更新：
 上面所有的绝对路径都修改为相对路径。
 推流的速度可能和设备有关
+2025/6/7 16:46更新：
+现在可以启动SpringBoot应用，在浏览器中输入URL：http://localhost:8080/mission/startnew?pull_url=https://resources.ucanfly.com.cn:8081/live/live/2.flv
+可以拉流并向rtmp://202.204.101.80:8082/live/202504?secret=1f146fe5c855d09fdb8e59d203a9fe9e推流，
+使用VLC播放器可以在https://resources.ucanfly.com.cn:8081/live/live/202504.flv网络串流查看推流视频
+u9-275CPU处理视频拉流速度是推理推流速度的200-300倍，多线程未实现。
 
+发请求http://localhost:8080/mission/stop停止任务，再次发startnew请求可以再次开启任务，任务开启期间不能再次开启任务。
+多线程未实现，可以考虑GPU加速，在1核2G的服务器上可能只能运行单线程。基于配置文件启动JAR包的方法还需要完善。

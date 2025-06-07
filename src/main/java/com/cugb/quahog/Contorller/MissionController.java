@@ -16,6 +16,7 @@ public class MissionController {
 
     @Autowired
     private VideoFrameProcessor vfp;
+    private boolean HasBeenRunned = false;
 
     @GetMapping("/start")
     public Result MissionStart(String pull_url) throws Exception {
@@ -48,16 +49,33 @@ public class MissionController {
 
     @GetMapping("/startnew")
     public Result MissionStartNew(String pull_url) throws Exception {
+        if (HasBeenRunned) {
+            return Result.error("Mission already running");
+        }
+        HasBeenRunned = true;
         vfp.InitAndStart(pull_url);
         vfp.PushStream();
-        vfp.close();
 
         return Result.success("");
     }
 
-    @PostMapping("/stop")
-    public void MissionStop() {
-
+    @GetMapping("/stop")
+    public Result MissionStop() throws Exception {
+        vfp.close();
+        HasBeenRunned = false;
+        return Result.success("任务结束");
+    }
+    @GetMapping("/restart")
+    public Result MissionRestart(String pull_url) throws Exception {
+        vfp.close();
+        HasBeenRunned = false;
+        if (HasBeenRunned) {
+            return Result.error("Mission already running");
+        }
+        HasBeenRunned = true;
+        vfp.InitAndStart(pull_url);
+        vfp.PushStream();
+        return Result.success("重开");
     }
 
     @PostMapping("/stopF")
