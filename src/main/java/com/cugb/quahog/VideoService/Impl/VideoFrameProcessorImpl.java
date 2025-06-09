@@ -158,7 +158,9 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         rate = frameGrabber.getFrameRate();
         Converter = new OpenCVFrameConverter.ToMat();
         env = OrtEnvironment.getEnvironment();
-        session = env.createSession(model_path);
+        OrtSession.SessionOptions options = new OrtSession.SessionOptions();
+        options.addCUDA(0);
+        session = env.createSession(model_path, options);
         frameQueue = new LinkedBlockingQueue<Frame>(10000);
         numThreads = 2;
         executor = Executors.newFixedThreadPool(numThreads);
@@ -166,11 +168,11 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setFormat("flv");
         recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
-        recorder.setFrameRate(15);
+        recorder.setFrameRate(60);
         // 设置比特率
-        recorder.setVideoBitrate(2000000);
+        recorder.setVideoBitrate(4000000);
         // 设置关键帧间隔
-        recorder.setGopSize(15);
+        recorder.setGopSize(60);
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
@@ -251,7 +253,9 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                // logger.info("postprocess time: " + (double) duration / 1_000_000 + " ms");
 
                 starttime = System.nanoTime();
+                opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/p.jpg", processedMat);
                 Mat FuseResult = drawAndCount(processedMat, detections);
+
                 endtime = System.nanoTime();
                 duration = endtime - starttime;
                 //logger.info("drawAndCount time: " + (double) duration / 1_000_000 + " ms");
@@ -363,7 +367,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         Map<Integer, Integer> classCounts = new HashMap<>();
         for (int i = 0; i < confidenceScores.length; i++) {
             for (int j = 0; j < confidenceScores[i].length; j++) {
-                if (confidenceScores[i][j] > 0.7) {
+                if (confidenceScores[i][j] > 0.9) {
                     int classId = classIds[i][j];
                     classCounts.put(classId, classCounts.getOrDefault(classId, 0) + 1);
                 }
@@ -373,7 +377,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         // 绘制边界框和类别标签、置信度
         for (int i = 0; i < confidenceScores.length; i++) {
             for (int j = 0; j < confidenceScores[i].length; j++) {
-                if (confidenceScores[i][j] > 0.7) {
+                if (confidenceScores[i][j] > 0.9) {
                     float x1 = boundingBoxes[i][j][0];
                     float y1 = boundingBoxes[i][j][1];
                     float x2 = boundingBoxes[i][j][2];
