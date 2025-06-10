@@ -168,11 +168,11 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setFormat("flv");
         recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
-        recorder.setFrameRate(60);
+        recorder.setFrameRate(30);
         // 设置比特率
         recorder.setVideoBitrate(4000000);
         // 设置关键帧间隔
-        recorder.setGopSize(60);
+        recorder.setGopSize(30);
         // 设置其他选项以优化低延迟推流
         recorder.setOption("preset", "ultrafast");
         recorder.setOption("tune", "zerolatency");
@@ -187,21 +187,12 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     @Override
     public Result PullStream(String pull_url) throws Exception {
         try{
-            Frame frame = null;
+            //Frame frame = null;
             while (!STOP) {
-                long starttime = System.nanoTime();
-                frame = frameGrabber.grabImage();
+                final Frame frame = frameGrabber.grabImage();
                 if (frame.image != null) {
                     frameQueue.add(frame);
-                    long endtime = System.nanoTime();
-                    long duration = endtime - starttime;
-                    //System.out.println("Grab time: " + (double) duration / 1_000_000_000 + " s");
-                    starttime = System.nanoTime();
                     FrameDetect();
-                    endtime = System.nanoTime();
-                    long dduration = endtime - starttime;
-                    //logger.info("Detect time: " + (double) dduration / 1_000_000 + " ms");
-                    //System.out.println("Detect time: " + (double) dduration / 1_000_000 + " ms");
                 }else{
                     System.out.println("No more frames available or net error");
                     continue;
@@ -226,61 +217,21 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         while (t == 0) {
             t = 1;
             try {
-                //logger.info("Frame Detect");
                 Frame frame = frameQueue.take();
                 if (frame.image == null) {
-                    //logger.warn("----------------------No more image");
                     continue;
                 }
                 Mat processedMat = preprocessFrame(frame);
                 OnnxTensor inputTensor = convertMatToOnnxTensor(processedMat);
                 Map<String, OnnxTensor> inputs = new HashMap<>();
                 inputs.put("images", inputTensor);
-
-
-                starttime = System.nanoTime();
                 OrtSession.Result result = session.run(inputs);
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-                //logger.info("sessionrun time: " + (double) duration / 1_000_000 + " ms");
-
-
-
-                starttime = System.nanoTime();
                 Map<String, Object> detections = postprocess(result);
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-               // logger.info("postprocess time: " + (double) duration / 1_000_000 + " ms");
-
-                starttime = System.nanoTime();
                 opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/p.jpg", processedMat);
                 Mat FuseResult = drawAndCount(processedMat, detections);
-
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-                //logger.info("drawAndCount time: " + (double) duration / 1_000_000 + " ms");
-
-
-
-                starttime = System.nanoTime();
                 opencv_imgcodecs.imwrite("src/main/java/com/cugb/quahog/Preview/q.jpg", FuseResult);
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-                //logger.info("imwrite time: " + (double) duration / 1_000_000 + " ms");
-
-                starttime = System.nanoTime();
                 Mat image = opencv_imgcodecs.imread("src/main/java/com/cugb/quahog/Preview/q.jpg");
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-                //logger.info("imread time: " + (double) duration / 1_000_000 + " ms");
-
-                starttime = System.nanoTime();
                 recorder.record(new OpenCVFrameConverter.ToIplImage().convert(image));
-                endtime = System.nanoTime();
-                duration = endtime - starttime;
-                //logger.info("record time: " + (double) duration / 1_000_000 + " ms");
-
-
                 inputTensor.close();
                 processedMat.release();
             } catch (InterruptedException e) {
