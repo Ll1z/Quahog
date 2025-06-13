@@ -111,6 +111,8 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
                 }
             }
         });
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.MINUTES);
         return Result.success();
     }
 
@@ -146,6 +148,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
     @Override
     public Result InitAndStart(String pull_url) throws Exception {
         STOP = false;
+        System.out.println("Initialize and Start");
         try{
             frameGrabber = new FFmpegFrameGrabber(pull_url);
             frameGrabber.start();
@@ -159,7 +162,7 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
         Converter = new OpenCVFrameConverter.ToMat();
         env = OrtEnvironment.getEnvironment();
         OrtSession.SessionOptions options = new OrtSession.SessionOptions();
-        options.addCUDA(0);
+        //options.addCUDA(0);
         session = env.createSession(model_path, options);
         frameQueue = new LinkedBlockingQueue<Frame>(10000);
         numThreads = 2;
@@ -186,13 +189,25 @@ public class VideoFrameProcessorImpl implements VideoFrameProcessor {
 
     @Override
     public Result PullStream(String pull_url) throws Exception {
+        int t = 1;
         try{
             //Frame frame = null;
             while (!STOP) {
+                double starttime = System.nanoTime();
                 final Frame frame = frameGrabber.grabImage();
+                double endtime = System.nanoTime();
+                double duration = endtime - starttime;
+                System.out.println("Pull Time: " + duration / 10000000 + "ms");
+
                 if (frame.image != null) {
                     frameQueue.add(frame);
+                    starttime = System.nanoTime();
                     FrameDetect();
+                    endtime = System.nanoTime();
+                    duration = endtime - starttime;
+                    System.out.println("Detection Time: " + duration / 10000000 + "ms");
+                    System.out.println("Have pushed " + t++ + " frames");
+
                 }else{
                     System.out.println("No more frames available or net error");
                     continue;
